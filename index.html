@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vito's RAG Quiz — AI Engineering Drill</title>
+<style>
+  :root {
+    --bg: #0f1420;
+    --panel: #171d2e;
+    --panel2: #1f2740;
+    --ink: #eef2ff;
+    --muted: #9aa7c7;
+    --accent: #ffb84d;
+    --accent2: #ff7a59;
+    --good: #35d07f;
+    --bad: #ff5c7a;
+    --line: #2a3454;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #1b2540 0%, var(--bg) 55%);
+    color: var(--ink);
+    min-height: 100vh;
+    display: flex;
+    justify-content: center;
+    padding: 28px 16px 60px;
+  }
+  .app { width: 100%; max-width: 760px; }
+  header { text-align: center; margin-bottom: 18px; }
+  h1 { font-size: 26px; margin: 0 0 4px; letter-spacing: -0.3px; }
+  h1 .flame { color: var(--accent); }
+  .sub { color: var(--muted); font-size: 14px; }
+  .hud {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .stat {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    text-align: center;
+  }
+  .stat .k { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .stat .v { font-size: 20px; font-weight: 700; margin-top: 2px; }
+  .xpwrap { margin: 6px 0 20px; }
+  .xpbar { height: 12px; background: var(--panel2); border-radius: 999px; overflow: hidden; border: 1px solid var(--line); }
+  .xpfill { height: 100%; width: 0%; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .4s ease; }
+  .xplabel { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-top: 6px; }
+
+  .card {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 22px;
+  }
+  .menu { display: grid; gap: 12px; }
+  .btn {
+    appearance: none;
+    border: 1px solid var(--line);
+    background: var(--panel2);
+    color: var(--ink);
+    padding: 14px 16px;
+    border-radius: 12px;
+    font-size: 15px;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    transition: transform .08s ease, border-color .2s ease, background .2s ease;
+  }
+  .btn:hover { border-color: var(--accent); transform: translateY(-1px); }
+  .btn small { display: block; font-weight: 400; color: var(--muted); margin-top: 3px; font-size: 12.5px; }
+  .btn.primary { background: linear-gradient(90deg, var(--accent), var(--accent2)); color: #1a1206; border: none; }
+  .btn:disabled { opacity: .55; cursor: default; transform: none; }
+
+  .qmeta { display: flex; justify-content: space-between; align-items: center; color: var(--muted); font-size: 13px; margin-bottom: 10px; }
+  .cat { color: var(--accent); font-weight: 600; }
+  .question { font-size: 20px; line-height: 1.4; font-weight: 600; margin: 6px 0 18px; }
+  .choices { display: grid; gap: 10px; }
+  .choice {
+    text-align: left; padding: 14px 16px; border-radius: 12px; border: 1px solid var(--line);
+    background: var(--panel2); color: var(--ink); font-size: 15px; cursor: pointer; line-height: 1.35;
+    transition: border-color .15s ease, background .15s ease;
+  }
+  .choice:hover:not(:disabled) { border-color: var(--accent); }
+  .choice:disabled { cursor: default; }
+  .choice.correct { border-color: var(--good); background: rgba(53,208,127,.14); }
+  .choice.wrong { border-color: var(--bad); background: rgba(255,92,122,.14); }
+  .choice .tag { font-weight: 700; margin-right: 8px; color: var(--muted); }
+
+  .feedback { margin-top: 16px; border-radius: 12px; padding: 14px 16px; border: 1px solid var(--line); background: var(--panel2); display: none; }
+  .feedback.show { display: block; }
+  .feedback .head { font-weight: 700; margin-bottom: 6px; }
+  .feedback.good .head { color: var(--good); }
+  .feedback.bad .head { color: var(--bad); }
+  .feedback .why { color: var(--muted); font-size: 14px; line-height: 1.5; }
+
+  .row { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+  .row .btn { flex: 1; text-align: center; }
+
+  .badges { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 10px; margin-top: 8px; }
+  .badge { border: 1px dashed var(--line); border-radius: 12px; padding: 10px; text-align: center; font-size: 12.5px; color: var(--muted); }
+  .badge.earned { border-style: solid; border-color: var(--accent); color: var(--ink); background: rgba(255,184,77,.08); }
+  .badge .ico { font-size: 22px; display: block; margin-bottom: 4px; }
+
+  .final { text-align: center; }
+  .final .big { font-size: 44px; font-weight: 800; margin: 6px 0; }
+  .final .msg { color: var(--muted); margin-bottom: 16px; }
+  .streakpill { background: var(--panel2); border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 13px; }
+  .hidden { display: none !important; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 22px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Vito's <span class="flame">RAG</span> Quiz</h1>
+    <div class="sub">Drill the mechanisms behind your own RAG project</div>
+  </header>
+
+  <div class="hud">
+    <div class="stat"><div class="k">Level</div><div class="v" id="hud-level">1</div></div>
+    <div class="stat"><div class="k">XP</div><div class="v" id="hud-xp">0</div></div>
+    <div class="stat"><div class="k">Streak</div><div class="v" id="hud-streak">0</div></div>
+    <div class="stat"><div class="k">Best</div><div class="v" id="hud-best">0</div></div>
+  </div>
+  <div class="xpwrap">
+    <div class="xpbar"><div class="xpfill" id="xpfill"></div></div>
+    <div class="xplabel"><span id="xpleft">Level 1</span><span id="xpright">0 / 100 XP</span></div>
+  </div>
+
+  <!-- MENU -->
+  <div class="card" id="menu">
+    <div class="menu">
+      <button class="btn primary" id="btn-quick">Quick Round<small>7 random questions across every topic</small></button>
+      <button class="btn" id="btn-category">Category Round<small>Focus one topic until you master it</small></button>
+      <button class="btn" id="btn-daily">Daily Challenge<small>10 questions, mixed — one shot per day</small></button>
+      <button class="btn" id="btn-badges">Badges<small>See what you've unlocked</small></button>
+    </div>
+    <div id="category-picker" class="hidden" style="margin-top:14px">
+      <div class="sub" style="margin-bottom:10px">Choose a category:</div>
+      <div class="choices" id="category-list"></div>
+    </div>
+  </div>
+
+  <!-- QUIZ -->
+  <div class="card hidden" id="quiz">
+    <div class="qmeta">
+      <span class="cat" id="q-cat">Category</span>
+      <span id="q-progress">1 / 7</span>
+    </div>
+    <div class="question" id="q-text">Question</div>
+    <div class="choices" id="q-choices"></div>
+    <div class="feedback" id="q-feedback">
+      <div class="head" id="fb-head"></div>
+      <div class="why" id="fb-why"></div>
+    </div>
+    <div class="row">
+      <button class="btn hidden" id="btn-next">Next →</button>
+      <button class="btn" id="btn-quit">Quit to menu</button>
+    </div>
+  </div>
+
+  <!-- RESULT -->
+  <div class="card hidden" id="result">
+    <div class="final">
+      <div class="streakpill"><span id="r-cat">Round</span></div>
+      <div class="big" id="r-score">0 / 7</div>
+      <div class="msg" id="r-msg"></div>
+      <div class="row">
+        <button class="btn primary" id="btn-again">Play again</button>
+        <button class="btn" id="btn-home">Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- BADGES -->
+  <div class="card hidden" id="badges-view">
+    <div class="qmeta"><span class="cat">Badges</span></div>
+    <div class="badges" id="badges-grid"></div>
+    <div class="row"><button class="btn" id="btn-badges-home">Back to menu</button></div>
+  </div>
+
+  <footer>Built for CJ · drill the mechanism, not the label</footer>
+</div>
+
+<script>
+/* ------------------------------------------------------------------ *
+ *  QUESTION BANK
+ *  Every question targets a MECHANISM, not a definition.
+ * ------------------------------------------------------------------ */
+const BANK = [
+  // --- Embeddings & Vectors ---
+  { cat: "Embeddings & Vectors", q: "What is an embedding?",
+    choices: [
+      "A list of numbers that represents the meaning of text",
+      "The searchable copy of a document stored in the database",
+      "The keyword index a search engine builds from words",
+      "A filename that points to where the text is saved"],
+    answer: 0,
+    why: "An embedding turns text into a list of numbers whose values encode meaning. Texts with similar meaning get similar numbers." },
+
+  { cat: "Embeddings & Vectors", q: "RAG compares your question to stored chunks by comparing...",
+    choices: ["The words in each text", "The number-lists (vectors), and how close they are", "The file names of the chunks", "The length of each chunk in characters"],
+    answer: 1,
+    why: "By search time the words are gone. It compares vectors and measures how close (similar) they are. Not words." },
+
+  { cat: "Embeddings & Vectors", q: "Two texts share ZERO words but still match in a search. Why?",
+    choices: [
+      "They secretly share a hidden keyword",
+      "Their vectors land close together because their meaning is similar",
+      "The search engine guessed based on text length",
+      "The database returned a random nearby result"],
+    answer: 1,
+    why: "Example: 'price of the pork sandwich' matches 'The Vito - $13'. No shared words — the vectors are close because the MEANING is close." },
+
+  { cat: "Embeddings & Vectors", q: "A vector's 'dimension' (e.g. 384) means...",
+    choices: ["How many words are in the chunk", "How many chunks the document was split into", "How many numbers make up one vector", "How many documents are in the index"],
+    answer: 2,
+    why: "Dimension = the count of numbers in each vector. Our model uses 384. Bigger models use more (768, 1536...)." },
+
+  { cat: "Embeddings & Vectors", q: "High cosine similarity (say 0.9) between two vectors means...",
+    choices: ["They point in the same direction, so the meanings are alike", "They are both very long vectors", "They were stored at the same time", "They are exactly the same text"],
+    answer: 0,
+    why: "Cosine similarity measures alignment of direction. High = pointing the same way = similar meaning. Not the same as 'identical text'." },
+
+  // --- Chunking ---
+  { cat: "Chunking", q: "Why do we split documents into chunks at all?",
+    choices: [
+      "One big vector for the whole doc would blur all the meaning together",
+      "Chroma can only store 10 documents",
+      "Chunks are required to make the file smaller on disk",
+      "The model refuses to read full documents"],
+    answer: 0,
+    why: "An embedding compresses text into ONE vector. Squeeze a whole handbook into one vector and you lose nearly everything." },
+
+  { cat: "Chunking", q: "CHUNK_OVERLAP = 100 means the next chunk re-reads...",
+    choices: ["100 extra words added to the end", "The last 100 characters of the previous chunk", "100 new documents", "The first 100 characters of the whole file"],
+    answer: 1,
+    why: "Overlap re-reads the tail (in CHARACTERS, not words) so a sentence on the boundary isn't torn in half." },
+
+  { cat: "Chunking", q: "Why does overlap exist?",
+    choices: [
+      "So a sentence sitting on the boundary isn't split and its meaning mangled",
+      "To make the index use more disk space",
+      "To slow down search on purpose",
+      "Because Chroma requires equal-size chunks"],
+    answer: 0,
+    why: "With zero overlap, a key sentence can land half in chunk 1 and half in chunk 2 — neither chunk contains the full meaning." },
+
+  // --- Retrieval & Scoring ---
+  { cat: "Retrieval & Scoring", q: "Chroma returns a DISTANCE like 0.75. What kind of number is that?",
+    choices: ["Similarity — bigger means more relevant", "Distance — bigger means farther apart (worse)", "A percentage of confidence", "The number of matching keywords"],
+    answer: 1,
+    why: "It's squared L2 distance. Bigger = farther = worse. Similarity, by contrast, is bigger = better. Opposite directions." },
+
+  { cat: "Retrieval & Scoring", q: "What does the formula  cos = 1 - d2/2  do?",
+    choices: [
+      "Turns a distance number into a similarity number (flips the direction)",
+      "Counts how many words matched",
+      "Rounds the score to a whole number",
+      "Sorts the chunks alphabetically"],
+    answer: 0,
+    why: "It's a unit conversion: Chroma says how FAR (small=good); we want how SIMILAR (big=good). Same info, flipped scale." },
+
+  { cat: "Retrieval & Scoring", q: "What is TOP_K?",
+    choices: ["The number of nearest chunks we retrieve", "The maximum size of a chunk", "How many questions the user can ask", "The number of documents loaded"],
+    answer: 0,
+    why: "Top-k = how many of the closest chunks we pull back and hand to the answer step. We used 4." },
+
+  // --- Production & Guardrails ---
+  { cat: "Production & Guardrails", q: "MIN_SCORE is 0.50. If you LOWER it to 0.20, what happens?",
+    choices: [
+      "The assistant refuses more questions",
+      "The assistant answers more — including off-topic questions it should refuse",
+      "Nothing changes at all",
+      "The vectors get re-embedded"],
+    answer: 1,
+    why: "Lower threshold = weaker matches pass. 'Capital of France' scored 0.378 — above 0.20, so it would answer with sandwich nonsense." },
+
+  { cat: "Production & Guardrails", q: "Why is a confidence guardrail important in RAG?",
+    choices: [
+      "It stops the assistant confidently answering from an irrelevant passage",
+      "It makes the embeddings more accurate",
+      "It reduces the file size",
+      "It runs the model faster"],
+    answer: 0,
+    why: "The classic RAG failure is answering nonsense with confidence. The guardrail refuses when the best match is too weak." },
+
+  { cat: "Production & Guardrails", q: "What does 'grounding' mean in our system prompt?",
+    choices: [
+      "Answer ONLY from the retrieved context, not the model's memory",
+      "Keep the responses short",
+      "Store the data on disk",
+      "Translate answers into plain English"],
+    answer: 0,
+    why: "Grounding = hand the model the evidence and forbid it from inventing. It's the main defense against hallucination." },
+
+  { cat: "Production & Guardrails", q: "An 'eval harness' (eval.py) is used to...",
+    choices: [
+      "Score the system against a fixed set of questions with known correct sources",
+      "Style the user interface",
+      "Compress the vector database",
+      "Train the embedding model"],
+    answer: 0,
+    why: "A fixed test set scored automatically. It's how you prove a change helped instead of guessing — our version scores 10/10." },
+
+  // --- The Pipeline ---
+  { cat: "The Pipeline", q: "Put the RAG pipeline in order:",
+    choices: [
+      "load -> chunk -> embed -> store -> retrieve -> generate",
+      "embed -> load -> generate -> store -> chunk -> retrieve",
+      "chunk -> generate -> retrieve -> embed -> load -> store",
+      "store -> retrieve -> load -> chunk -> embed -> generate"],
+    answer: 0,
+    why: "Load the docs, chunk them, embed each chunk, store vectors, retrieve nearest for a question, then generate a grounded answer." },
+
+  { cat: "The Pipeline", q: "What role does Chroma play in the project?",
+    choices: [
+      "It's the vector database that stores and searches the embeddings",
+      "It generates the final written answer",
+      "It downloads the documents from the internet",
+      "It splits text into chunks"],
+    answer: 0,
+    why: "Chroma is the vector store: persist embeddings and run similarity search. Chunking is the splitter; generation is the LLM." },
+
+  { cat: "The Pipeline", q: "'Metadata' on a chunk (like source: allergens.md) is used to...",
+    choices: [
+      "Cite which document an answer came from",
+      "Make the vector bigger",
+      "Speed up chunking",
+      "Decide the chunk size"],
+    answer: 0,
+    why: "Metadata travels with the chunk so answers can cite [allergens.md]. It's how the assistant shows its work." },
+];
+
+const CATEGORIES = [...new Set(BANK.map(q => q.cat))];
+
+/* ------------------------------------------------------------------ *
+ *  BADGES
+ * ------------------------------------------------------------------ */
+const BADGES = [
+  { id: "first",  ico: "🌟", name: "First Steps",   test: s => s.totalCorrect >= 1 },
+  { id: "perfect",ico: "🏆", name: "Perfect Round", test: s => s.perfectRounds >= 1 },
+  { id: "streak5",ico: "🔥", name: "Streak x5",     test: s => s.bestStreak >= 5 },
+  { id: "streak10",ico: "⚡",      name: "Streak x10",    test: s => s.bestStreak >= 10 },
+  { id: "lvl5",   ico: "🎯", name: "Level 5",       test: s => s.level >= 5 },
+  { id: "scholar",ico: "🧠", name: "20 Correct",    test: s => s.totalCorrect >= 20 },
+  { id: "master", ico: "👑", name: "50 Correct",    test: s => s.totalCorrect >= 50 },
+  { id: "daily",  ico: "📅", name: "Daily Done",    test: s => s.dailyDone },
+];
+
+/* ------------------------------------------------------------------ *
+ *  STATE  (persisted to localStorage)
+ * ------------------------------------------------------------------ */
+const DEFAULT_STATE = { xp: 0, level: 1, streak: 0, bestStreak: 0, totalCorrect: 0, perfectRounds: 0, dailyDone: false, dailyDate: null, badges: [] };
+const KEY = "vitos-rag-quiz-v1";
+let state = load();
+let round = null;
+
+function load() {
+  try { return Object.assign({}, DEFAULT_STATE, JSON.parse(localStorage.getItem(KEY) || "{}")); }
+  catch { return { ...DEFAULT_STATE }; }
+}
+function save() { localStorage.setItem(KEY, JSON.stringify(state)); }
+
+function xpForLevel(l) { return l * 100; }  // level 1->2 needs 100, etc.
+
+function addXp(n) {
+  state.xp += n;
+  while (state.xp >= xpForLevel(state.level)) {
+    state.xp -= xpForLevel(state.level);
+    state.level += 1;
+  }
+  renderHud();
+  checkBadges();
+}
+
+function checkBadges() {
+  let newly = [];
+  for (const b of BADGES) {
+    if (!state.badges.includes(b.id) && b.test(state)) {
+      state.badges.push(b.id);
+      newly.push(b);
+    }
+  }
+  if (newly.length) { newly.forEach(b => toast(b)); }
+  save();
+}
+
+function toast(b) {
+  const t = document.createElement("div");
+  t.textContent = `${b.ico}  Badge unlocked: ${b.name}`;
+  t.style.cssText = "position:fixed;left:50%;bottom:26px;transform:translateX(-50%);background:var(--panel);border:1px solid var(--accent);color:var(--ink);padding:12px 18px;border-radius:12px;font-weight:600;z-index:99;box-shadow:0 8px 30px rgba(0,0,0,.4)";
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2600);
+}
+
+/* ------------------------------------------------------------------ *
+ *  HUD
+ * ------------------------------------------------------------------ */
+function renderHud() {
+  document.getElementById("hud-level").textContent = state.level;
+  document.getElementById("hud-xp").textContent = state.xp;
+  document.getElementById("hud-streak").textContent = state.streak;
+  document.getElementById("hud-best").textContent = state.bestStreak;
+  const need = xpForLevel(state.level);
+  document.getElementById("xpfill").style.width = Math.min(100, (state.xp / need) * 100) + "%";
+  document.getElementById("xpleft").textContent = "Level " + state.level;
+  document.getElementById("xpright").textContent = `${state.xp} / ${need} XP`;
+}
+
+/* ------------------------------------------------------------------ *
+ *  VIEW HELPERS
+ * ------------------------------------------------------------------ */
+const $ = id => document.getElementById(id);
+function show(id) {
+  ["menu", "quiz", "result", "badges-view"].forEach(v => $(v).classList.toggle("hidden", v !== id));
+}
+function shuffle(a) { a = a.slice(); for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; }
+
+/* ------------------------------------------------------------------ *
+ *  ROUND LOGIC
+ * ------------------------------------------------------------------ */
+function startRound(kind, category) {
+  let pool;
+  if (kind === "category") pool = BANK.filter(q => q.cat === category);
+  else if (kind === "daily") pool = shuffle(BANK).slice(0, 10);
+  else pool = shuffle(BANK).slice(0, 7);
+
+  round = { kind, category: category || (kind === "daily" ? "Daily Challenge" : "Quick Round"), questions: pool, index: 0, correct: 0, answered: false };
+  show("quiz");
+  renderQuestion();
+}
+
+function renderQuestion() {
+  const q = round.questions[round.index];
+  round.answered = false;
+  $("q-cat").textContent = q.cat;
+  $("q-progress").textContent = `${round.index + 1} / ${round.questions.length}`;
+  $("q-text").textContent = q.q;
+  $("btn-next").classList.add("hidden");
+  const fb = $("q-feedback"); fb.className = "feedback";
+
+  // Shuffle choices while tracking the correct original index
+  const order = shuffle(q.choices.map((c, i) => ({ c, i })));
+  const box = $("q-choices"); box.innerHTML = "";
+  order.forEach(({ c, i }, pos) => {
+    const b = document.createElement("button");
+    b.className = "choice";
+    b.innerHTML = `<span class="tag">${String.fromCharCode(65 + pos)}</span>${c}`;
+    b.onclick = () => answer(b, i === q.answer, q);
+    box.appendChild(b);
+  });
+}
+
+function answer(btn, isCorrect, q) {
+  if (round.answered) return;
+  round.answered = true;
+  const buttons = [...document.querySelectorAll(".choice")];
+  buttons.forEach(b => b.disabled = true);
+
+  // reveal correct / wrong
+  btn.classList.add(isCorrect ? "correct" : "wrong");
+  if (!isCorrect) {
+    // find and mark the correct one
+    const correctText = q.choices[q.answer];
+    buttons.forEach(b => { if (b.textContent.includes(correctText)) b.classList.add("correct"); });
+  }
+
+  const fb = $("q-feedback");
+  fb.className = "feedback show " + (isCorrect ? "good" : "bad");
+  $("fb-head").textContent = isCorrect ? "Correct  ✓" : "Not quite";
+  $("fb-why").textContent = q.why;
+
+  if (isCorrect) {
+    round.correct += 1;
+    state.totalCorrect += 1;
+    state.streak += 1;
+    state.bestStreak = Math.max(state.bestStreak, state.streak);
+    addXp(10 + Math.min(state.streak, 5) * 2); // streak bonus
+  } else {
+    state.streak = 0;
+    renderHud();
+  }
+  save();
+
+  const next = $("btn-next");
+  next.classList.remove("hidden");
+  next.textContent = (round.index + 1 >= round.questions.length) ? "See results →" : "Next →";
+}
+
+function nextQuestion() {
+  round.index += 1;
+  if (round.index >= round.questions.length) finishRound();
+  else renderQuestion();
+}
+
+function finishRound() {
+  const n = round.questions.length;
+  const pct = round.correct / n;
+  if (pct === 1) { state.perfectRounds += 1; addXp(25); }
+  if (round.kind === "daily") {
+    state.dailyDone = true;
+    state.dailyDate = new Date().toISOString().slice(0, 10);
+  }
+  save(); checkBadges(); renderHud();
+
+  $("r-cat").textContent = round.category;
+  $("r-score").textContent = `${round.correct} / ${n}`;
+  let msg;
+  if (pct === 1) msg = "Flawless. The mechanism is yours.";
+  else if (pct >= 0.8) msg = "Strong. One weak spot left to drill.";
+  else if (pct >= 0.5) msg = "Solid base — review the misses below and go again.";
+  else msg = "Great data. Wrong answers are the map. Re-read the misses.";
+  $("r-msg").textContent = msg;
+  show("result");
+}
+
+/* ------------------------------------------------------------------ *
+ *  BADGES VIEW
+ * ------------------------------------------------------------------ */
+function renderBadges() {
+  const grid = $("badges-grid"); grid.innerHTML = "";
+  BADGES.forEach(b => {
+    const d = document.createElement("div");
+    d.className = "badge" + (state.badges.includes(b.id) ? " earned" : "");
+    d.innerHTML = `<span class="ico">${b.ico}</span>${b.name}`;
+    grid.appendChild(d);
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ *  CATEGORY PICKER
+ * ------------------------------------------------------------------ */
+function renderCategories() {
+  const list = $("category-list"); list.innerHTML = "";
+  CATEGORIES.forEach(cat => {
+    const count = BANK.filter(q => q.cat === cat).length;
+    const b = document.createElement("button");
+    b.className = "choice";
+    b.textContent = `${cat}  (${count})`;
+    b.onclick = () => startRound("category", cat);
+    list.appendChild(b);
+  });
+}
+
+/* ------------------------------------------------------------------ *
+ *  WIRE UP
+ * ------------------------------------------------------------------ */
+$("btn-quick").onclick = () => startRound("quick");
+$("btn-category").onclick = () => { $("category-picker").classList.toggle("hidden"); renderCategories(); };
+$("btn-daily").onclick = () => startRound("daily");
+$("btn-badges").onclick = () => { renderBadges(); show("badges-view"); };
+$("btn-badges-home").onclick = () => show("menu");
+$("btn-next").onclick = nextQuestion;
+$("btn-quit").onclick = () => { state.streak = 0; renderHud(); show("menu"); };
+$("btn-again").onclick = () => startRound(round.kind, round.category);
+$("btn-home").onclick = () => show("menu");
+
+renderHud();
+</script>
+</body>
+</html>
